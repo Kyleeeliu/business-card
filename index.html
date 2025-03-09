@@ -1,0 +1,1530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Business Card Scanner</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/tesseract.js@5.0.4/dist/tesseract.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .dark {
+            background-color: #111827;
+            color: #ffffff;
+        }
+
+        .btn-primary {
+            @apply px-5 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-full
+                   hover:from-blue-600 hover:to-blue-700 transition-all duration-300 
+                   shadow-md hover:shadow-xl transform hover:-translate-y-0.5
+                   font-medium text-sm border border-transparent
+                   focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800
+                   active:from-blue-700 active:to-blue-800 select-none
+                   disabled:opacity-50 disabled:cursor-not-allowed
+                   backdrop-filter backdrop-blur-sm;
+        }
+
+        .btn-secondary {
+            @apply px-5 py-2.5 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 
+                   rounded-full hover:bg-gray-50 dark:hover:bg-gray-600 transition-all duration-300
+                   shadow hover:shadow-lg transform hover:-translate-y-0.5
+                   font-medium text-sm border border-gray-200 dark:border-gray-600
+                   focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 dark:focus:ring-offset-gray-800
+                   active:bg-gray-100 dark:active:bg-gray-800 select-none
+                   disabled:opacity-50 disabled:cursor-not-allowed
+                   backdrop-filter backdrop-blur-sm;
+        }
+
+        /* Add styles for danger button variant */
+        .btn-danger {
+            @apply px-5 py-2.5 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-full
+                   hover:from-red-600 hover:to-red-700 transition-all duration-300 
+                   shadow-md hover:shadow-xl transform hover:-translate-y-0.5
+                   font-medium text-sm border border-transparent
+                   focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800
+                   active:from-red-700 active:to-red-800;
+        }
+
+        /* Update card styles to match the rounded theme */
+        .card {
+            @apply bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-lg
+                   transition-all duration-300 hover:shadow-xl
+                   border border-gray-100 dark:border-gray-700
+                   backdrop-filter backdrop-blur-sm;
+        }
+
+        .input-field {
+            @apply w-full px-4 py-2.5 rounded-full border border-gray-300 dark:border-gray-600 
+                   bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent
+                   transition-all duration-300 text-sm
+                   placeholder-gray-400 dark:placeholder-gray-500
+                   shadow-sm hover:shadow focus:shadow-md;
+        }
+
+        .upload-area {
+            @apply border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-3xl
+                   transition-all duration-300 hover:border-blue-500 dark:hover:border-blue-400
+                   bg-gray-50 dark:bg-gray-900/50 backdrop-filter backdrop-blur-sm;
+        }
+
+        .processing-animation {
+            @apply flex items-center justify-center space-x-2 text-blue-500;
+        }
+
+        .processing-dot {
+            @apply w-2 h-2 bg-current rounded-full;
+            animation: pulse 1.4s infinite ease-in-out;
+        }
+
+        .contact-card {
+            @apply transform transition-all duration-300 hover:-translate-y-1 hover:shadow-lg
+                   rounded-2xl overflow-hidden border border-gray-100 dark:border-gray-700
+                   hover:border-blue-200 dark:hover:border-blue-800;
+        }
+
+        /* Add styles for calendar/meeting components */
+        .meeting-card {
+            @apply bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-100 
+                   dark:border-gray-700 hover:shadow-md transition-all duration-300;
+        }
+
+        .calendar-grid {
+            @apply grid grid-cols-7 gap-1;
+        }
+
+        .calendar-day {
+            @apply p-2 text-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 
+                   cursor-pointer transition-colors duration-200;
+        }
+
+        .calendar-day.selected {
+            @apply bg-blue-500 text-white hover:bg-blue-600;
+        }
+
+        .calendar-day.has-meeting {
+            @apply ring-2 ring-blue-500 dark:ring-blue-400;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(0.3); opacity: 0.3; }
+            50% { transform: scale(1); opacity: 1; }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+
+        .dark ::-webkit-scrollbar-thumb {
+            background: #4b5563;
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <header class="bg-white dark:bg-gray-800 shadow-md">
+        <nav class="container mx-auto px-4 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                    <svg class="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                              d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
+                    </svg>
+                    <h1 class="text-2xl font-bold bg-gradient-to-r from-blue-500 to-blue-700 bg-clip-text text-transparent">
+                        CardScan AI
+                    </h1>
+                </div>
+                <button onclick="toggleDarkMode()" class="btn-secondary flex items-center space-x-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" id="theme-toggle-icon">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                              d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707"/>
+                    </svg>
+                    <span id="theme-toggle-text">Toggle Theme</span>
+                </button>
+            </div>
+        </nav>
+    </header>
+
+    <main class="container mx-auto px-4 py-8">
+        <!-- Add Calendar Section -->
+        <div class="mb-8">
+            <h2 class="text-2xl font-bold text-gray-800 dark:text-gray-200 mb-4">
+                Calendar
+            </h2>
+            <div class="card">
+                <div class="flex items-center justify-between mb-4">
+                    <button onclick="previousMonth()" class="btn-secondary">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                        </svg>
+                    </button>
+                    <h3 id="currentMonth" class="text-lg font-semibold"></h3>
+                    <button onclick="nextMonth()" class="btn-secondary">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="grid grid-cols-7 gap-1 mb-2">
+                    <div class="text-center font-medium p-2">Sun</div>
+                    <div class="text-center font-medium p-2">Mon</div>
+                    <div class="text-center font-medium p-2">Tue</div>
+                    <div class="text-center font-medium p-2">Wed</div>
+                    <div class="text-center font-medium p-2">Thu</div>
+                    <div class="text-center font-medium p-2">Fri</div>
+                    <div class="text-center font-medium p-2">Sat</div>
+                </div>
+                <div id="calendarDays" class="grid grid-cols-7 gap-1">
+                    <!-- Calendar days will be inserted here -->
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- Scanner Section -->
+            <div class="space-y-6">
+                <h2 class="text-2xl font-bold text-gray-800 dark:text-gray-200">
+                    Scan Business Card
+                </h2>
+                <div class="card">
+                    <div class="space-y-6">
+                        <div class="upload-area p-8">
+                            <div class="space-y-4 text-center">
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    id="cardInput"
+                                    class="hidden"
+                                    onchange="handleFileUpload(event)"
+                                />
+                                <label for="cardInput" class="btn-primary inline-flex items-center space-x-2 cursor-pointer">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                              d="M12 4v16m8-8H4"/>
+                                    </svg>
+                                    <span>Upload Business Card</span>
+                                </label>
+                                <p class="text-sm text-gray-500 dark:text-gray-400">
+                                    Supports JPG, PNG, and PDF formats
+                                </p>
+                            </div>
+                        </div>
+
+                        <div id="processingStatus" class="processing-animation hidden py-4">
+                            <div class="processing-dot" style="animation-delay: 0s"></div>
+                            <div class="processing-dot" style="animation-delay: 0.2s"></div>
+                            <div class="processing-dot" style="animation-delay: 0.4s"></div>
+                            <span class="ml-2">Processing...</span>
+                        </div>
+
+                        <div id="resultContainer" class="mt-4 hidden fade-in">
+                            <h3 class="text-lg font-semibold mb-2">Scanned Information</h3>
+                            <pre id="scannedText" class="bg-gray-50 dark:bg-gray-900 p-4 rounded-lg overflow-x-auto text-sm"></pre>
+                            <button onclick="saveContact()" class="btn-primary mt-4 w-full">
+                                Save Contact
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Contacts Section -->
+            <div class="space-y-6">
+                <h2 class="text-2xl font-bold text-gray-800 dark:text-gray-200">
+                    Saved Contacts
+                </h2>
+                <div class="card">
+                    <div class="relative">
+                        <input
+                            type="text"
+                            placeholder="Search contacts..."
+                            oninput="filterContacts(this.value)"
+                            class="input-field pl-10"
+                        />
+                        <svg class="w-5 h-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" 
+                             fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                        </svg>
+                    </div>
+                    <div id="contactsList" class="mt-4 space-y-4 max-h-[600px] overflow-y-auto">
+                        <!-- Contacts will be inserted here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Update theme toggle functionality
+        function toggleDarkMode() {
+            const isDark = document.body.classList.toggle('dark');
+            localStorage.setItem('darkMode', isDark);
+            updateThemeToggle(isDark);
+        }
+
+        function updateThemeToggle(isDark) {
+            const icon = document.getElementById('theme-toggle-icon');
+            const text = document.getElementById('theme-toggle-text');
+            
+            if (isDark) {
+                icon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                      d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>`;
+                text.textContent = 'Light Mode';
+            } else {
+                icon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                      d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707"/>`;
+                text.textContent = 'Dark Mode';
+            }
+        }
+
+        // Initialize theme
+        if (localStorage.getItem('darkMode') === 'true') {
+            document.body.classList.add('dark');
+            updateThemeToggle(true);
+        }
+
+        // Handle file upload and OCR
+        async function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const processingStatus = document.getElementById('processingStatus');
+            const resultContainer = document.getElementById('resultContainer');
+            const scannedText = document.getElementById('scannedText');
+
+            processingStatus.classList.remove('hidden');
+            resultContainer.classList.add('hidden');
+
+            try {
+                const worker = await Tesseract.createWorker();
+                await worker.loadLanguage('eng');
+                await worker.initialize('eng');
+                const { data: { text } } = await worker.recognize(file);
+                await worker.terminate();
+
+                // Pre-process and filter the text
+                const cleanedText = filterAndOrganizeText(text);
+                scannedText.textContent = cleanedText;
+                resultContainer.classList.remove('hidden');
+            } catch (error) {
+                console.error('OCR Error:', error);
+                alert('Error processing image. Please try again.');
+            } finally {
+                processingStatus.classList.add('hidden');
+            }
+        }
+
+        function filterAndOrganizeText(text) {
+            // Split text into lines and remove empty lines
+            let lines = text.split('\n').filter(line => line.trim());
+
+            // Regular expressions for identifying different types of information
+            const patterns = {
+                email: /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/gi,
+                // Updated phone patterns to be more comprehensive
+                phone: /(?:(?:\+?\d{1,4}[-.\s]?)?(?:\(?\d{1,4}\)?[-.\s]?)?)?\d{1,4}[-.\s]?\d{1,4}[-.\s]?\d{1,9}/g,
+                // International phone formats
+                intlPhone: /(?:\+|00)[1-9][0-9\s.-]{8,}/g,
+                // Extension patterns
+                phoneExt: /(?:ext|x|extension)\.?\s*\d+/gi,
+                website: /(?:www\.|http:\/\/|https:\/\/)?[a-zA-Z0-9-]+(?:\.[a-zA-Z]{2,})+/gi,
+                socialMedia: /(?:linkedin\.com|twitter\.com|facebook\.com|instagram\.com)/i,
+                fax: /(?:fax|facsimile)[\s:]+.+/i,
+                noise: /^[-–—•*\s]+$/  // Lines that only contain decorative characters
+            };
+
+            // Keywords for different categories
+            const keywords = {
+                title: ['manager', 'director', 'engineer', 'ceo', 'cto', 'president', 'coordinator', 
+                    'specialist', 'analyst', 'developer', 'designer', 'consultant', 'supervisor', 
+                    'lead', 'head', 'chief', 'vp', 'vice president', 'associate', 'executive'],
+                company: ['inc', 'llc', 'ltd', 'co', 'corporation', 'company', 'group', 'technologies', 
+                    'solutions', 'services', 'industries', 'enterprises'],
+                address: ['street', 'st', 'avenue', 'ave', 'road', 'rd', 'boulevard', 'blvd', 'lane', 
+                    'ln', 'drive', 'dr', 'suite', 'floor', 'fl', 'apt', 'unit']
+            };
+
+            // Initialize categories for organized information
+            const organized = {
+                name: '',
+                title: '',
+                company: '',
+                contact: [],
+                address: [],
+                other: []
+            };
+
+            // First pass: Identify and categorize each line
+            lines = lines.filter(line => {
+                line = line.trim();
+                
+                // Remove noise lines
+                if (patterns.noise.test(line)) return false;
+                
+                // Remove very short lines that are likely noise
+                if (line.length < 3) return false;
+                
+                // Remove lines with too many special characters
+                if ((line.match(/[^a-zA-Z0-9\s@.,-]/g) || []).length > line.length / 3) return false;
+
+                return true;
+            });
+
+            // Second pass: Organize information
+            lines.forEach((line, index) => {
+                line = line.trim();
+
+                // Extract contact information
+                if (patterns.email.test(line) || 
+                    patterns.phone.test(line) || 
+                    patterns.intlPhone.test(line)) {
+                    organized.contact.push(line);
+                    return;
+                }
+
+                // Skip website and social media links
+                if (patterns.website.test(line) || patterns.socialMedia.test(line)) {
+                    return;
+                }
+
+                // Skip fax numbers
+                if (patterns.fax.test(line)) {
+                    return;
+                }
+
+                // Try to identify name (usually in first 2 lines, properly capitalized)
+                if (!organized.name && index < 2) {
+                    const words = line.split(/\s+/);
+                    if (words.length >= 2 && words.length <= 4 &&
+                        /^[A-Z][a-z]+/.test(line) &&
+                        !line.includes('@') &&
+                        !/\d/.test(line) &&
+                        !keywords.title.some(k => line.toLowerCase().includes(k)) &&
+                        !keywords.company.some(k => line.toLowerCase().includes(k))) {
+                        organized.name = line;
+                        return;
+                    }
+                }
+
+                // Try to identify job title
+                if (!organized.title && 
+                    keywords.title.some(k => line.toLowerCase().includes(k))) {
+                    organized.title = line;
+                    return;
+                }
+
+                // Try to identify company name
+                if (!organized.company && 
+                    keywords.company.some(k => line.toLowerCase().includes(k))) {
+                    organized.company = line;
+                    return;
+                }
+
+                // Try to identify address
+                if ((/\d/.test(line) && 
+                    keywords.address.some(k => line.toLowerCase().includes(k))) ||
+                    /^[A-Z]{2}\s+\d{5}(-\d{4})?$/.test(line)) { // US ZIP code pattern
+                    organized.address.push(line);
+                    return;
+                }
+
+                // Keep other potentially important information
+                if (line.length > 3 && !/^[0-9-+()]+$/.test(line)) {
+                    organized.other.push(line);
+                }
+            });
+
+            // Build filtered text output
+            let output = '';
+            if (organized.name) output += organized.name + '\n';
+            if (organized.title) output += organized.title + '\n';
+            if (organized.company) output += organized.company + '\n';
+            if (organized.contact.length) output += '\nContact:\n' + organized.contact.join('\n');
+            if (organized.address.length) output += '\nAddress:\n' + organized.address.join('\n');
+            if (organized.other.length) output += '\nAdditional Information:\n' + organized.other.join('\n');
+
+            return output.trim();
+        }
+
+        // Contact management
+        let contacts = JSON.parse(localStorage.getItem('contacts') || '[]');
+
+        function extractNameFromEmail(email) {
+            if (!email) return null;
+            
+            // Get the part before @ symbol
+            const localPart = email.split('@')[0];
+            
+            // Common email patterns
+            const patterns = [
+                // firstname.lastname
+                /^([a-zA-Z]+)\.([a-zA-Z]+)$/,
+                // firstnamelastname
+                /^([a-zA-Z]+)([A-Z][a-zA-Z]+)$/,
+                // firstname_lastname
+                /^([a-zA-Z]+)_([a-zA-Z]+)$/,
+                // f.lastname
+                /^([a-zA-Z])\.([a-zA-Z]+)$/,
+                // flastname
+                /^([a-zA-Z])([a-zA-Z]+)$/
+            ];
+
+            for (let pattern of patterns) {
+                const match = localPart.match(pattern);
+                if (match) {
+                    const firstName = match[1];
+                    const lastName = match[2];
+                    // Capitalize first letters
+                    return `${firstName.charAt(0).toUpperCase() + firstName.slice(1)} ${lastName.charAt(0).toUpperCase() + lastName.slice(1)}`;
+                }
+            }
+
+            return null;
+        }
+
+        function compareNames(name1, name2) {
+            if (!name1 || !name2) return false;
+            
+            // Clean and normalize both names
+            const normalize = (name) => {
+                return name.toLowerCase()
+                    .replace(/[^a-z\s]/g, '')
+                    .split(/\s+/)
+                    .filter(part => part.length > 1)  // Remove initials
+                    .join(' ');
+            };
+            
+            const n1 = normalize(name1);
+            const n2 = normalize(name2);
+            
+            // Check if either name contains the other
+            return n1.includes(n2) || n2.includes(n1) ||
+                   // Or if they share significant parts
+                   n1.split(' ').some(part => 
+                       n2.split(' ').some(part2 => 
+                           part.length > 2 && part2.length > 2 && part === part2
+                       )
+                   );
+        }
+
+        function parseContactInfo(text) {
+            const lines = text.split('\n').filter(line => line.trim());
+            const contact = {
+                id: Date.now().toString(),
+                name: '',
+                email: '',
+                phone: '',
+                address: '',
+                company: '',
+                title: '',
+                country: '',
+                dateAdded: new Date().toISOString().split('T')[0],
+                rawText: text
+            };
+
+            // Regular expressions for different fields
+            const patterns = {
+                email: /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/gi,
+                phone: /(?:(?:\+?\d{1,4}[-.\s]?)?(?:\(?\d{1,4}\)?[-.\s]?)?)?\d{1,4}[-.\s]?\d{1,4}[-.\s]?\d{1,9}/g,
+                intlPhone: /(?:\+|00)[1-9][0-9\s.-]{8,}/g,
+                // Add patterns that typically aren't names
+                notName: /(?:www|http|https|fax|tel|mobile|email|address|street|ave|road|suite|floor|fl)/i,
+                // Pattern for typical name format
+                nameFormat: /^[A-Z][a-z]+(?:[\s-][A-Z][a-z]+)*$/
+            };
+
+            // Common words that shouldn't be in names
+            const notNameWords = ['inc', 'llc', 'ltd', 'co', 'corporation', 'company', 'group', 'international', 
+                'technologies', 'solutions', 'services', 'industries', 'enterprises', 'department', 'division',
+                'phone', 'cell', 'fax', 'email', 'website', 'web', 'www'];
+
+            // Extract email
+            const emails = text.match(patterns.email);
+            if (emails) {
+                contact.email = emails[0];
+            }
+
+            // Extract phone numbers with better handling
+            function extractPhoneNumber(text) {
+                let phones = new Set(); // Use Set to prevent duplicates
+                
+                // Normalize the text by removing extra spaces and special characters
+                const normalizedText = text.replace(/[^\d+\s()-]/g, '')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+                
+                // Combined pattern for both international and local numbers
+                const phonePattern = /(?:\+?\d{1,4}[-\s]?)?\(?(?:\d{1,4})\)?[-\s]?\d{1,4}[-\s]?\d{1,4}(?:[-\s]?\d{1,9})?/g;
+                
+                // Find all phone numbers
+                let matches = normalizedText.match(phonePattern) || [];
+                let extensions = text.match(/(?:ext|x|extension)\.?\s*\d+/gi) || [];
+                
+                // Process each match
+                matches.forEach(phone => {
+                    // Clean the number
+                    let cleanedNumber = phone.replace(/[^\d+()-]/g, '')
+                        .replace(/\s+/g, ' ')
+                        .trim();
+                    
+                    // Only keep numbers that are long enough to be valid (at least 7 digits)
+                    if (cleanedNumber.replace(/[^\d]/g, '').length >= 7) {
+                        phones.add(cleanedNumber);
+                    }
+                });
+
+                // Convert Set back to array
+                let uniquePhones = Array.from(phones);
+                
+                // Add extension to the first number if it exists
+                if (extensions.length > 0 && uniquePhones.length > 0) {
+                    uniquePhones[0] = uniquePhones[0] + ' ' + extensions[0];
+                }
+
+                return uniquePhones;
+            }
+
+            // Update the phone number extraction in both functions
+            const phoneNumbers = extractPhoneNumber(text);
+            if (phoneNumbers.length > 0) {
+                contact.phone = phoneNumbers.join(', ');
+            }
+
+            // Try to extract name from email
+            const emailName = extractNameFromEmail(contact.email);
+            let nameFromEmail = null;
+            if (emailName) {
+                nameFromEmail = emailName;
+            }
+
+            // First pass: Look for properly formatted names
+            let nameFound = false;
+            for (let i = 0; i < Math.min(3, lines.length); i++) {
+                const line = lines[i].trim();
+                
+                // Skip empty lines or lines with special characters only
+                if (!line || /^[^a-zA-Z0-9]+$/.test(line)) continue;
+
+                // Skip if line contains email or phone
+                if (patterns.email.test(line) || patterns.phone.test(line)) continue;
+
+                // Skip if line contains common non-name words
+                if (notNameWords.some(word => line.toLowerCase().includes(word))) continue;
+
+                // Skip if line contains typical non-name patterns
+                if (patterns.notName.test(line)) continue;
+
+                // Check if the line matches typical name format (e.g., "John Smith" or "John A. Smith")
+                if (/^[A-Z][a-z]+(?:(?:\s+(?:[A-Z]\.?|[a-z]+)\s+)|(?:\s+))[A-Z][a-z]+$/.test(line)) {
+                    // If we have a name from email, verify it matches
+                    if (nameFromEmail) {
+                        if (compareNames(line, nameFromEmail)) {
+                            contact.name = line;
+                            nameFound = true;
+                            break;
+                        }
+                    } else {
+                        contact.name = line;
+                        nameFound = true;
+                        break;
+                    }
+                }
+            }
+
+            // Second pass: If no name found, look for potential names
+            if (!nameFound) {
+                for (let i = 0; i < Math.min(3, lines.length); i++) {
+                    const line = lines[i].trim();
+                    
+                    // Skip problematic lines
+                    if (!line || 
+                        patterns.email.test(line) || 
+                        patterns.phone.test(line) ||
+                        patterns.notName.test(line) ||
+                        notNameWords.some(word => line.toLowerCase().includes(word))) {
+                        continue;
+                    }
+
+                    // Check if line has 2-3 words and starts with capital letter
+                    const words = line.split(/\s+/);
+                    if (words.length >= 2 && words.length <= 3 && 
+                        /^[A-Z]/.test(line) && 
+                        !line.includes('@') && 
+                        !/\d/.test(line)) {
+                        // If we have a name from email, verify it matches
+                        if (nameFromEmail) {
+                            if (compareNames(line, nameFromEmail)) {
+                                contact.name = line;
+                                nameFound = true;
+                                break;
+                            }
+                        } else {
+                            contact.name = line;
+                            nameFound = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // If still no name found but we have email name, use it
+            if (!nameFound && nameFromEmail) {
+                contact.name = nameFromEmail;
+                nameFound = true;
+            }
+
+            // Process each line for other information
+            lines.forEach((line, index) => {
+                line = line.trim();
+                
+                if (!line || /^[^a-zA-Z0-9]+$/.test(line)) return;
+
+                // Try to identify job title (common keywords)
+                const titleKeywords = ['manager', 'director', 'engineer', 'ceo', 'cto', 'president', 
+                    'coordinator', 'specialist', 'analyst', 'developer', 'designer', 'consultant',
+                    'supervisor', 'lead', 'head', 'chief', 'vp', 'vice president', 'associate',
+                    'executive', 'officer', 'founder', 'partner', 'principal', 'architect'];
+                if (!contact.title && titleKeywords.some(keyword => 
+                    line.toLowerCase().includes(keyword))) {
+                    contact.title = line;
+                    return;
+                }
+
+                // Try to identify company
+                const companyKeywords = ['inc', 'llc', 'ltd', 'co', 'corporation', 'company', 'group',
+                    'technologies', 'solutions', 'services', 'industries', 'enterprises'];
+                if (!contact.company && companyKeywords.some(keyword => 
+                    line.toLowerCase().includes(keyword))) {
+                    contact.company = line;
+                    return;
+                }
+
+                // Try to identify address
+                const addressKeywords = ['street', 'st', 'avenue', 'ave', 'road', 'rd', 'boulevard', 
+                    'blvd', 'lane', 'ln', 'drive', 'dr', 'suite', 'floor', 'fl', 'apt', 'unit'];
+                if (!contact.address && (
+                    /\d/.test(line) && addressKeywords.some(keyword => 
+                        line.toLowerCase().includes(keyword))
+                )) {
+                    contact.address = line;
+                    
+                    // Try to extract country
+                    const commonCountries = ['usa', 'united states', 'uk', 'canada', 'australia', 
+                        'china', 'japan', 'germany', 'france', 'singapore', 'india', 'korea',
+                        'united kingdom', 'spain', 'italy'];
+                    commonCountries.forEach(country => {
+                        if (line.toLowerCase().includes(country)) {
+                            contact.country = country.toUpperCase();
+                        }
+                    });
+                }
+            });
+
+            // If still no name found, use first non-empty line that's not already categorized
+            if (!contact.name) {
+                for (const line of lines) {
+                    if (line.trim() && 
+                        line !== contact.email &&
+                        line !== contact.phone &&
+                        line !== contact.title &&
+                        line !== contact.company &&
+                        line !== contact.address) {
+                        contact.name = line;
+                        break;
+                    }
+                }
+            }
+
+            // If still no name, mark as unknown
+            if (!contact.name) {
+                contact.name = 'Unknown';
+            }
+
+            return contact;
+        }
+
+        function saveContact() {
+            const scannedText = document.getElementById('scannedText').textContent;
+            const contact = parseContactInfo(scannedText);
+            
+            contacts.unshift(contact);
+            localStorage.setItem('contacts', JSON.stringify(contacts));
+            displayContacts(contacts);
+            
+            document.getElementById('resultContainer').classList.add('hidden');
+            document.getElementById('cardInput').value = '';
+        }
+
+        function deleteContact(id) {
+            contacts = contacts.filter(contact => contact.id !== id);
+            localStorage.setItem('contacts', JSON.stringify(contacts));
+            displayContacts(contacts);
+        }
+
+        function filterContacts(query) {
+            const filtered = contacts.filter(contact => 
+                Object.values(contact).some(value => 
+                    value.toString().toLowerCase().includes(query.toLowerCase())
+                )
+            );
+            displayContacts(filtered);
+        }
+
+        // Add this function for name validation
+        function isValidName(name) {
+            // If empty or too short
+            if (!name || name.trim().length < 2) return false;
+
+            // Common name prefixes and suffixes
+            const prefixes = ['mr', 'mrs', 'ms', 'dr', 'prof', 'rev', 'hon'];
+            const suffixes = ['jr', 'sr', 'ii', 'iii', 'iv', 'phd', 'md', 'esq'];
+            
+            // Basic name validation rules
+            const nameRules = {
+                minLength: 2, // Minimum characters per word
+                maxLength: 50, // Maximum characters per word
+                minWords: 1, // Minimum words in full name
+                maxWords: 6, // Maximum words in full name
+                // Allow letters, spaces, hyphens, apostrophes, and dots (for initials)
+                validCharacters: /^[a-zA-Z\s'.-]+$/
+            };
+            
+            // Remove multiple spaces and trim
+            const cleanedName = name.trim().replace(/\s+/g, ' ');
+            
+            // Split into words
+            const words = cleanedName.split(/\s+/);
+            
+            // Check number of words
+            if (words.length < nameRules.minWords || words.length > nameRules.maxWords) return false;
+
+            // Check for valid characters
+            if (!nameRules.validCharacters.test(cleanedName)) return false;
+
+            // Check each word
+            for (let word of words) {
+                // Remove special characters for length check
+                const cleanedWord = word.replace(/[-'.]/g, '');
+                
+                // Skip prefix/suffix length checks
+                const isPrefix = prefixes.includes(word.toLowerCase().replace(/\./g, ''));
+                const isSuffix = suffixes.includes(word.toLowerCase().replace(/\./g, ''));
+                
+                if (!isPrefix && !isSuffix) {
+                    // Check word length
+                    if (cleanedWord.length < nameRules.minLength || 
+                        cleanedWord.length > nameRules.maxLength) {
+                        return false;
+                    }
+                }
+
+                // Check if it's an initial (single letter followed by optional dot)
+                const isInitial = /^[A-Z]\.?$/.test(word);
+                
+                // If not an initial, check capitalization
+                if (!isInitial && !isPrefix && !isSuffix) {
+                    // Allow names that start with Mc or Mac
+                    if (word.startsWith('Mc') || word.startsWith('Mac')) {
+                        if (!/^(?:Mc|Mac)[A-Z][a-z]*$/.test(word)) return false;
+                    }
+                    // Regular name capitalization
+                    else if (!/^[A-Z][a-z]*(?:[-'][A-Z][a-z]*)*$/.test(word)) {
+                        return false;
+                    }
+                }
+            }
+
+            return true;
+        }
+
+        // Add contact editing functionality
+        function editContact(id) {
+            const contact = contacts.find(c => c.id === id);
+            if (!contact) return;
+
+            const editForm = document.createElement('div');
+            editForm.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4';
+            editForm.innerHTML = `
+                <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-lg space-y-4">
+                    <h3 class="text-xl font-bold mb-4">Edit Contact</h3>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Name</label>
+                            <input type="text" id="edit-name" value="${contact.name}" 
+                                class="w-full px-3 py-2 border rounded-lg dark:bg-gray-700">
+                            <p id="name-validation" class="text-red-500 text-sm hidden">Please enter a valid name</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Title</label>
+                            <input type="text" id="edit-title" value="${contact.title || ''}" 
+                                class="w-full px-3 py-2 border rounded-lg dark:bg-gray-700">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Company</label>
+                            <input type="text" id="edit-company" value="${contact.company || ''}" 
+                                class="w-full px-3 py-2 border rounded-lg dark:bg-gray-700">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Email</label>
+                            <input type="email" id="edit-email" value="${contact.email || ''}" 
+                                class="w-full px-3 py-2 border rounded-lg dark:bg-gray-700">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Phone</label>
+                            <input type="tel" id="edit-phone" value="${contact.phone || ''}" 
+                                class="w-full px-3 py-2 border rounded-lg dark:bg-gray-700">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Address</label>
+                            <input type="text" id="edit-address" value="${contact.address || ''}" 
+                                class="w-full px-3 py-2 border rounded-lg dark:bg-gray-700">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Country</label>
+                            <input type="text" id="edit-country" value="${contact.country || ''}" 
+                                class="w-full px-3 py-2 border rounded-lg dark:bg-gray-700">
+                        </div>
+                    </div>
+                    <div class="flex justify-end space-x-3 mt-6">
+                        <button onclick="closeEditForm()" class="btn-secondary">Cancel</button>
+                        <button onclick="saveEditedContact('${id}')" class="btn-primary">Save</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(editForm);
+
+            // Add name validation on input
+            const nameInput = document.getElementById('edit-name');
+            const nameValidation = document.getElementById('name-validation');
+            nameInput.addEventListener('input', function() {
+                const isValid = isValidName(this.value);
+                nameValidation.classList.toggle('hidden', isValid);
+                this.classList.toggle('border-red-500', !isValid);
+            });
+        }
+
+        function closeEditForm() {
+            const form = document.querySelector('.fixed');
+            if (form) form.remove();
+        }
+
+        function saveEditedContact(id) {
+            const name = document.getElementById('edit-name').value;
+            
+            // Validate name before saving
+            if (!isValidName(name)) {
+                document.getElementById('name-validation').classList.remove('hidden');
+                document.getElementById('edit-name').classList.add('border-red-500');
+                return;
+            }
+
+            const updatedContact = {
+                ...contacts.find(c => c.id === id),
+                name: name,
+                title: document.getElementById('edit-title').value,
+                company: document.getElementById('edit-company').value,
+                email: document.getElementById('edit-email').value,
+                phone: document.getElementById('edit-phone').value,
+                address: document.getElementById('edit-address').value,
+                country: document.getElementById('edit-country').value
+            };
+
+            contacts = contacts.map(c => c.id === id ? updatedContact : c);
+            localStorage.setItem('contacts', JSON.stringify(contacts));
+            displayContacts(contacts);
+            closeEditForm();
+        }
+
+        // Add this function to generate vCard format
+        function generateVCard(contact) {
+            const vcard = [
+                'BEGIN:VCARD',
+                'VERSION:3.0',
+                `FN:${contact.name}`,
+                `N:${contact.name.split(' ').reverse().join(';')}`,
+                contact.title ? `TITLE:${contact.title}` : '',
+                contact.company ? `ORG:${contact.company}` : '',
+                contact.email ? `EMAIL;TYPE=INTERNET:${contact.email}` : '',
+                contact.phone ? `TEL;TYPE=WORK,VOICE:${contact.phone}` : '',
+                contact.address ? `ADR;TYPE=WORK:;;${contact.address}` : '',
+                'END:VCARD'
+            ].filter(Boolean).join('\n');
+
+            return vcard;
+        }
+
+        // Add this function to export contact to device
+        async function exportToDevice(contact) {
+            try {
+                // Check if the Contacts API is available (mobile devices)
+                if ('contacts' in navigator && 'ContactsManager' in window) {
+                    try {
+                        const properties = ['name', 'email', 'tel', 'address', 'organization'];
+                        const contactToSave = {
+                            name: [contact.name],
+                            email: contact.email ? [contact.email] : [],
+                            tel: contact.phone ? [contact.phone] : [],
+                            address: contact.address ? [contact.address] : [],
+                            organization: contact.company ? [contact.company] : []
+                        };
+
+                        const supported = await navigator.contacts.getProperties();
+                        if (supported.length > 0) {
+                            await navigator.contacts.select(properties);
+                            await navigator.contacts.save([contactToSave]);
+                            alert('Contact saved to device successfully!');
+                            return;
+                        }
+                    } catch (error) {
+                        console.log('Mobile contacts API error:', error);
+                        // Fall through to vCard download
+                    }
+                }
+                
+                // Fallback to vCard download for desktop or if mobile API fails
+                downloadVCard(contact);
+            } catch (error) {
+                console.error('Error exporting contact:', error);
+                alert('There was an error exporting the contact. Please try again.');
+            }
+        }
+
+        // Update the vCard download function
+        function downloadVCard(contact) {
+            try {
+                const vcard = generateVCard(contact);
+                const blob = new Blob([vcard], { type: 'text/vcard;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `${contact.name.replace(/[^a-zA-Z0-9]/g, '_')}.vcf`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            } catch (error) {
+                console.error('Error downloading vCard:', error);
+                alert('There was an error downloading the contact. Please try again.');
+            }
+        }
+
+        // Add meeting management functions
+        let meetings = JSON.parse(localStorage.getItem('meetings') || '[]');
+
+        function scheduleMeeting(contactId) {
+            const contact = contacts.find(c => c.id === contactId);
+            if (!contact) return;
+
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50';
+            modal.innerHTML = `
+                <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-lg space-y-4">
+                    <h3 class="text-xl font-bold mb-4">Schedule Meeting with ${contact.name}</h3>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Date</label>
+                            <input type="date" id="meeting-date" 
+                                class="w-full px-3 py-2 border rounded-lg dark:bg-gray-700"
+                                min="${new Date().toISOString().split('T')[0]}">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Time</label>
+                            <input type="time" id="meeting-time" 
+                                class="w-full px-3 py-2 border rounded-lg dark:bg-gray-700">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Duration (minutes)</label>
+                            <select id="meeting-duration" 
+                                class="w-full px-3 py-2 border rounded-lg dark:bg-gray-700">
+                                <option value="30">30 minutes</option>
+                                <option value="60">1 hour</option>
+                                <option value="90">1.5 hours</option>
+                                <option value="120">2 hours</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Location</label>
+                            <input type="text" id="meeting-location" 
+                                class="w-full px-3 py-2 border rounded-lg dark:bg-gray-700"
+                                placeholder="Enter meeting location or video call link">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Notes</label>
+                            <textarea id="meeting-notes" 
+                                class="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 resize-none"
+                                rows="3" placeholder="Add meeting notes or agenda"></textarea>
+                        </div>
+                    </div>
+                    <div class="flex justify-end space-x-3 mt-6">
+                        <button onclick="closeMeetingModal()" class="btn-secondary">Cancel</button>
+                        <button onclick="saveMeeting('${contactId}')" class="btn-primary">Schedule Meeting</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+
+        function closeMeetingModal() {
+            const modal = document.querySelector('.fixed');
+            if (modal) modal.remove();
+        }
+
+        function saveMeeting(contactId) {
+            const date = document.getElementById('meeting-date').value;
+            const time = document.getElementById('meeting-time').value;
+            const duration = document.getElementById('meeting-duration').value;
+            const location = document.getElementById('meeting-location').value;
+            const notes = document.getElementById('meeting-notes').value;
+
+            if (!date || !time) {
+                alert('Please select both date and time');
+                return;
+            }
+
+            const meeting = {
+                id: Date.now().toString(),
+                contactId: contactId,
+                date: date,
+                time: time,
+                duration: duration,
+                location: location,
+                notes: notes,
+                status: 'scheduled'
+            };
+
+            meetings.push(meeting);
+            localStorage.setItem('meetings', JSON.stringify(meetings));
+            closeMeetingModal();
+            displayContacts(contacts); // Refresh to show new meeting
+            scheduleMeetingNotification(meeting);
+        }
+
+        function scheduleMeetingNotification(meeting) {
+            if ('Notification' in window) {
+                Notification.requestPermission().then(permission => {
+                    if (permission === 'granted') {
+                        const contact = contacts.find(c => c.id === meeting.contactId);
+                        const meetingTime = new Date(`${meeting.date}T${meeting.time}`);
+                        const notificationTime = new Date(meetingTime.getTime() - 15 * 60000); // 15 minutes before
+
+                        if (notificationTime > new Date()) {
+                            const timeout = notificationTime.getTime() - new Date().getTime();
+                            setTimeout(() => {
+                                new Notification('Meeting Reminder', {
+                                    body: `Meeting with ${contact.name} in 15 minutes at ${meeting.location}`,
+                                    icon: '/favicon.ico'
+                                });
+                            }, timeout);
+                        }
+                    }
+                });
+            }
+        }
+
+        function getMeetingsForContact(contactId) {
+            return meetings.filter(m => m.contactId === contactId && new Date(`${m.date}T${m.time}`) >= new Date());
+        }
+
+        function formatMeetingTime(date, time, duration) {
+            const datetime = new Date(`${date}T${time}`);
+            const options = { 
+                weekday: 'short', 
+                month: 'short', 
+                day: 'numeric',
+                hour: 'numeric', 
+                minute: '2-digit'
+            };
+            return `${datetime.toLocaleString('en-US', options)} (${duration} min)`;
+        }
+
+        // Update displayContacts to include meetings
+        function displayContacts(contactsToDisplay) {
+            const contactsList = document.getElementById('contactsList');
+            contactsList.innerHTML = contactsToDisplay.length ? '' : '<p class="text-center text-gray-500">No contacts found</p>';
+
+            contactsToDisplay.forEach(contact => {
+                const contactMeetings = getMeetingsForContact(contact.id);
+                const contactElement = document.createElement('div');
+                contactElement.className = 'contact-card p-6 mb-4 bg-white dark:bg-gray-800 last:mb-0';
+                
+                // Add meetings section to the contact card
+                const meetingsHtml = contactMeetings.length ? `
+                    <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                        <h4 class="font-medium text-sm text-gray-900 dark:text-white mb-2">Upcoming Meetings</h4>
+                        <div class="space-y-2">
+                            ${contactMeetings.map(meeting => `
+                                <div class="meeting-card">
+                                    <div class="flex justify-between items-start">
+                                        <div>
+                                            <p class="text-sm font-medium">${formatMeetingTime(meeting.date, meeting.time, meeting.duration)}</p>
+                                            <p class="text-sm text-gray-500">${meeting.location}</p>
+                                            ${meeting.notes ? `<p class="text-sm text-gray-500 mt-1">${meeting.notes}</p>` : ''}
+                                        </div>
+                                        <button onclick="deleteMeeting('${meeting.id}')" 
+                                                class="text-red-500 hover:text-red-700 transition-colors">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                                      d="M6 18L18 6M6 6l12 12"/>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                ` : '';
+
+                contactElement.innerHTML = `
+                    <div class="flex justify-between items-start gap-4">
+                        <div class="space-y-2 flex-grow">
+                            <h3 class="font-semibold text-lg text-gray-900 dark:text-white">${contact.name}</h3>
+                            ${contact.title ? `<p class="text-gray-600 dark:text-gray-300 font-medium">${contact.title}</p>` : ''}
+                            ${contact.company ? `<p class="text-gray-500 dark:text-gray-400">${contact.company}</p>` : ''}
+                            <div class="space-y-1 mt-3">
+                                ${contact.email ? `
+                                    <p class="text-gray-500 dark:text-gray-400 flex items-center gap-2">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                                  d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                                        </svg>
+                                        ${contact.email}
+                                    </p>` : ''}
+                                ${contact.phone ? `
+                                    <p class="text-gray-500 dark:text-gray-400 flex items-center gap-2">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                                  d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
+                                        </svg>
+                                        ${contact.phone}
+                                    </p>` : ''}
+                                ${contact.address ? `
+                                    <p class="text-gray-500 dark:text-gray-400 flex items-center gap-2">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                                  d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                                  d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                        </svg>
+                                        ${contact.address}
+                                    </p>` : ''}
+                                ${contact.country ? `
+                                    <p class="text-gray-500 dark:text-gray-400 flex items-center gap-2">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                                  d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                        </svg>
+                                        ${contact.country}
+                                    </p>` : ''}
+                            </div>
+                        </div>
+                        <div class="flex flex-col gap-2 min-w-[120px]">
+                            <button onclick="editContact('${contact.id}')" 
+                                    class="btn-secondary w-full flex items-center justify-center gap-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                                </svg>
+                                <span>Edit</span>
+                            </button>
+                            <button onclick="showDetails('${contact.id}')" 
+                                    class="btn-secondary w-full flex items-center justify-center gap-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                          d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                          d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                                </svg>
+                                <span>Details</span>
+                            </button>
+                            <button onclick="exportToDevice(${JSON.stringify(contact).replace(/"/g, '&quot;')})" 
+                                    class="btn-primary w-full flex items-center justify-center gap-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                          d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                </svg>
+                                <span>Add</span>
+                            </button>
+                            <button onclick="deleteContact('${contact.id}')" 
+                                    class="btn-danger w-full flex items-center justify-center gap-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                </svg>
+                                <span>Delete</span>
+                            </button>
+                        </div>
+                    </div>
+                    ${meetingsHtml}
+                    <div id="details-${contact.id}" class="mt-4 hidden">
+                        <pre class="bg-gray-50 dark:bg-gray-900 p-4 rounded-xl text-sm font-mono">${contact.rawText}</pre>
+                    </div>
+                `;
+
+                // Add Schedule Meeting button to the buttons group
+                const buttonsContainer = contactElement.querySelector('.flex.flex-col.gap-2');
+                const scheduleMeetingButton = document.createElement('button');
+                scheduleMeetingButton.className = 'btn-primary w-full flex items-center justify-center gap-2';
+                scheduleMeetingButton.onclick = () => scheduleMeeting(contact.id);
+                scheduleMeetingButton.innerHTML = `
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                              d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                    </svg>
+                    <span>Schedule</span>
+                `;
+                buttonsContainer.insertBefore(scheduleMeetingButton, buttonsContainer.lastElementChild);
+
+                contactsList.appendChild(contactElement);
+            });
+        }
+
+        function deleteMeeting(meetingId) {
+            if (confirm('Are you sure you want to delete this meeting?')) {
+                meetings = meetings.filter(m => m.id !== meetingId);
+                localStorage.setItem('meetings', JSON.stringify(meetings));
+                displayContacts(contacts);
+            }
+        }
+
+        // Initialize meetings from localStorage
+        meetings = JSON.parse(localStorage.getItem('meetings') || '[]');
+
+        // Initialize contacts display
+        displayContacts(contacts);
+
+        // Add calendar management functions
+        let currentDate = new Date();
+        let selectedDate = null;
+
+        function updateCalendar() {
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+            const firstDay = new Date(year, month, 1);
+            const lastDay = new Date(year, month + 1, 0);
+            const startingDay = firstDay.getDay();
+            const monthLength = lastDay.getDate();
+
+            // Update month display
+            const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                              'July', 'August', 'September', 'October', 'November', 'December'];
+            document.getElementById('currentMonth').textContent = `${monthNames[month]} ${year}`;
+
+            const calendarDays = document.getElementById('calendarDays');
+            calendarDays.innerHTML = '';
+
+            // Add empty cells for days before the first of the month
+            for (let i = 0; i < startingDay; i++) {
+                const emptyDay = document.createElement('div');
+                emptyDay.className = 'p-2 min-h-[80px] bg-gray-50 dark:bg-gray-900 rounded-lg';
+                calendarDays.appendChild(emptyDay);
+            }
+
+            // Add days of the month
+            for (let day = 1; day <= monthLength; day++) {
+                const date = new Date(year, month, day);
+                const dayElement = document.createElement('div');
+                dayElement.className = 'relative p-2 min-h-[80px] bg-white dark:bg-gray-800 rounded-lg ' +
+                                     'hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors cursor-pointer ' +
+                                     'border border-gray-200 dark:border-gray-700';
+
+                // Add day number
+                const dayNumber = document.createElement('div');
+                dayNumber.className = 'text-sm font-medium mb-1';
+                dayNumber.textContent = day;
+                dayElement.appendChild(dayNumber);
+
+                // Add meetings for this day
+                const dayMeetings = meetings.filter(meeting => {
+                    const meetingDate = new Date(meeting.date);
+                    return meetingDate.getDate() === day &&
+                           meetingDate.getMonth() === month &&
+                           meetingDate.getFullYear() === year;
+                });
+
+                if (dayMeetings.length > 0) {
+                    const meetingsContainer = document.createElement('div');
+                    meetingsContainer.className = 'space-y-1';
+
+                    dayMeetings.forEach(meeting => {
+                        const contact = contacts.find(c => c.id === meeting.contactId);
+                        const meetingElement = document.createElement('div');
+                        meetingElement.className = 'text-xs p-1 rounded bg-blue-100 dark:bg-blue-900 ' +
+                                                 'text-blue-800 dark:text-blue-200 truncate';
+                        meetingElement.textContent = `${meeting.time} - ${contact ? contact.name : 'Unknown'}`;
+                        meetingElement.title = `${contact ? contact.name : 'Unknown'} - ${meeting.location}`;
+                        
+                        // Add click handler to show meeting details
+                        meetingElement.onclick = (e) => {
+                            e.stopPropagation();
+                            showMeetingDetails(meeting, contact);
+                        };
+                        
+                        meetingsContainer.appendChild(meetingElement);
+                    });
+
+                    dayElement.appendChild(meetingsContainer);
+                }
+
+                // Highlight current day
+                const today = new Date();
+                if (day === today.getDate() && month === today.getMonth() && year === today.getFullYear()) {
+                    dayElement.classList.add('ring-2', 'ring-blue-500');
+                }
+
+                // Add click handler to schedule meeting
+                dayElement.onclick = () => {
+                    selectedDate = new Date(year, month, day);
+                    showScheduleModal();
+                };
+
+                calendarDays.appendChild(dayElement);
+            }
+        }
+
+        function previousMonth() {
+            currentDate.setMonth(currentDate.getMonth() - 1);
+            updateCalendar();
+        }
+
+        function nextMonth() {
+            currentDate.setMonth(currentDate.getMonth() + 1);
+            updateCalendar();
+        }
+
+        function showMeetingDetails(meeting, contact) {
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50';
+            modal.innerHTML = `
+                <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-lg">
+                    <h3 class="text-xl font-bold mb-4">Meeting Details</h3>
+                    <div class="space-y-3">
+                        <p><span class="font-medium">With:</span> ${contact ? contact.name : 'Unknown'}</p>
+                        <p><span class="font-medium">Date:</span> ${formatMeetingTime(meeting.date, meeting.time, meeting.duration)}</p>
+                        <p><span class="font-medium">Location:</span> ${meeting.location}</p>
+                        ${meeting.notes ? `<p><span class="font-medium">Notes:</span> ${meeting.notes}</p>` : ''}
+                    </div>
+                    <div class="flex justify-end space-x-3 mt-6">
+                        <button onclick="deleteMeeting('${meeting.id}')" class="btn-danger">Delete</button>
+                        <button onclick="closeModal()" class="btn-secondary">Close</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+
+        function showScheduleModal() {
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50';
+            modal.innerHTML = `
+                <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-lg">
+                    <h3 class="text-xl font-bold mb-4">Schedule Meeting</h3>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Contact</label>
+                            <select id="meeting-contact" class="w-full px-3 py-2 border rounded-lg dark:bg-gray-700">
+                                ${contacts.map(contact => `
+                                    <option value="${contact.id}">${contact.name}</option>
+                                `).join('')}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Time</label>
+                            <input type="time" id="meeting-time" 
+                                class="w-full px-3 py-2 border rounded-lg dark:bg-gray-700">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Duration (minutes)</label>
+                            <select id="meeting-duration" 
+                                class="w-full px-3 py-2 border rounded-lg dark:bg-gray-700">
+                                <option value="30">30 minutes</option>
+                                <option value="60">1 hour</option>
+                                <option value="90">1.5 hours</option>
+                                <option value="120">2 hours</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Location</label>
+                            <input type="text" id="meeting-location" 
+                                class="w-full px-3 py-2 border rounded-lg dark:bg-gray-700"
+                                placeholder="Enter meeting location or video call link">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Notes</label>
+                            <textarea id="meeting-notes" 
+                                class="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 resize-none"
+                                rows="3" placeholder="Add meeting notes or agenda"></textarea>
+                        </div>
+                    </div>
+                    <div class="flex justify-end space-x-3 mt-6">
+                        <button onclick="closeModal()" class="btn-secondary">Cancel</button>
+                        <button onclick="saveScheduledMeeting()" class="btn-primary">Schedule</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+
+        function closeModal() {
+            const modal = document.querySelector('.fixed');
+            if (modal) modal.remove();
+        }
+
+        function saveScheduledMeeting() {
+            const contactId = document.getElementById('meeting-contact').value;
+            const time = document.getElementById('meeting-time').value;
+            const duration = document.getElementById('meeting-duration').value;
+            const location = document.getElementById('meeting-location').value;
+            const notes = document.getElementById('meeting-notes').value;
+
+            if (!time) {
+                alert('Please select a time');
+                return;
+            }
+
+            const meeting = {
+                id: Date.now().toString(),
+                contactId: contactId,
+                date: selectedDate.toISOString().split('T')[0],
+                time: time,
+                duration: duration,
+                location: location,
+                notes: notes,
+                status: 'scheduled'
+            };
+
+            meetings.push(meeting);
+            localStorage.setItem('meetings', JSON.stringify(meetings));
+            closeModal();
+            updateCalendar();
+            displayContacts(contacts);
+            scheduleMeetingNotification(meeting);
+        }
+
+        // Initialize calendar
+        updateCalendar();
+    </script>
+</body>
+</html> 
